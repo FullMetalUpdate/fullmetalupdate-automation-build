@@ -1,0 +1,50 @@
+version: '2'
+services:
+  buildbot:
+    image: lquinet/buildbot-master
+    env_file:
+      - db.env
+    environment:
+      - BUILDBOT_CONFIG_DIR=config
+      - BUILDBOT_CONFIG_URL=https://github.com/lquinet/fmu-automation-build/archive/master.tar.gz
+      - BUILDBOT_WORKER_PORT=9989
+      - BUILDBOT_WEB_URL=http://localhost:8010/
+      - BUILDBOT_WEB_PORT=tcp:port=8010
+      - BUILDBOT_WORKER_WORKDIR=$BUILDBOT_WORKER_WORKDIR
+      - SMTP_PWD=$SMTP_PWD
+      - GITHUB_TOKEN=$GITHUB_TOKEN
+    links:
+      - db
+    depends_on:
+      - db
+    ports:
+      - "8010:8010"
+  db:
+    env_file:
+      - db.env
+    image: "postgres:9.4"
+    expose:
+      - 5432
+
+  worker:
+    image: "lquinet/buildbot-worker"
+    environment:
+      - BUILDMASTER=buildbot
+      - BUILDMASTER_PORT=9989
+      - WORKERNAME=example-worker
+      - WORKERPASS=pass
+      - WORKER_ENVIRONMENT_BLACKLIST=DOCKER_BUILDBOT* BUILDBOT_ENV_* BUILDBOT_1* WORKER_ENVIRONMENT_BLACKLIST
+      - BUILDBOT_WORKER_WORKDIR=$BUILDBOT_WORKER_WORKDIR
+      - FMU_CLOUD_HOSTNAME=$FMU_CLOUD_HOSTNAME
+      - SD_CARD_DEV_PATH=$SD_CARD_DEV_PATH
+    volumes:
+      - "$BUILDBOT_WORKER_WORKDIR:$BUILDBOT_WORKER_WORKDIR"
+      # Bind-mounting host docker socket to perform DooD (Docker outside of Docker)
+      # The container will be able to start “sibling” containers and not child containers
+      # See https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    devices:
+      - "$SD_CARD_DEV_PATH:$SD_CARD_DEV_PATH"
+
+    links:
+      - buildbot
